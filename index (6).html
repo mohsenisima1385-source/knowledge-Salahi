@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>پایگاه دانش مدیریت</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f8f7f4; --surface: #ffffff; --border: #e5e3dc; --border-strong: #ccc9bf;
+    --text: #1a1915; --text-muted: #6b6860; --text-faint: #a09e98;
+    --accent: #2563a8; --accent-bg: #eef4fc; --accent-text: #1a4b8a;
+    --red: #991b1b; --red-bg: #fee2e2;
+    --radius: 10px; --radius-sm: 6px; --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  body { font-family: Tahoma,'Segoe UI',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; direction:rtl; font-size:15px; line-height:1.6; }
+  .layout { display:flex; min-height:100vh; }
+  .sidebar { width:240px; background:var(--surface); border-left:1px solid var(--border); padding:24px 0; position:fixed; top:0; right:0; bottom:0; display:flex; flex-direction:column; gap:4px; z-index:100; }
+  .sidebar-logo { padding:0 20px 20px; border-bottom:1px solid var(--border); margin-bottom:8px; }
+  .sidebar-logo h1 { font-size:16px; font-weight:600; margin-bottom:2px; }
+  .sidebar-logo p { font-size:12px; color:var(--text-muted); }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:10px 20px; cursor:pointer; font-size:14px; color:var(--text-muted); border:none; background:none; width:100%; text-align:right; transition:all 0.15s; }
+  .nav-item:hover { background:var(--bg); color:var(--text); }
+  .nav-item.active { background:var(--accent-bg); color:var(--accent-text); font-weight:600; }
+  .nav-item svg { width:18px; height:18px; flex-shrink:0; }
+  .nav-badge { margin-right:auto; background:var(--accent-bg); color:var(--accent-text); font-size:11px; padding:1px 7px; border-radius:100px; font-weight:600; }
+  .sidebar-footer { margin-top:auto; padding:16px 20px 0; border-top:1px solid var(--border); font-size:12px; color:var(--text-faint); }
+  .main { margin-right:240px; flex:1; padding:32px; min-height:100vh; }
+  .page { display:none; }
+  .page.active { display:block; }
+  .page-header { margin-bottom:28px; }
+  .page-header h2 { font-size:22px; font-weight:600; margin-bottom:4px; }
+  .page-header p { color:var(--text-muted); font-size:14px; }
+  .drop-zone { border:2px dashed var(--border-strong); border-radius:var(--radius); padding:48px 32px; text-align:center; cursor:pointer; transition:all 0.2s; background:var(--surface); margin-bottom:24px; }
+  .drop-zone:hover, .drop-zone.dragover { border-color:var(--accent); background:var(--accent-bg); }
+  .drop-zone-icon { font-size:40px; margin-bottom:12px; }
+  .drop-zone h3 { font-size:16px; font-weight:600; margin-bottom:6px; }
+  .drop-zone p { color:var(--text-muted); font-size:13px; margin-bottom:16px; }
+  .type-tags { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:12px; }
+  .type-tag { padding:4px 14px; border-radius:100px; font-size:12px; font-weight:600; }
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:var(--radius-sm); font-size:14px; cursor:pointer; border:none; font-family:inherit; transition:all 0.15s; }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-primary:hover { opacity:0.9; }
+  .btn-outline { background:var(--surface); color:var(--text); border:1px solid var(--border-strong); }
+  .btn-outline:hover { background:var(--bg); }
+  .btn-sm { padding:5px 12px; font-size:12px; }
+  .btn-danger { background:var(--red-bg); color:var(--red); }
+  .file-list { display:flex; flex-direction:column; gap:10px; }
+  .file-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px; display:flex; align-items:flex-start; gap:14px; box-shadow:var(--shadow); }
+  .file-desc { font-size:12px; color:var(--text-muted); margin-top:4px; font-style:italic; }
+  .desc-input { width:100%; margin-top:6px; padding:5px 10px; border:1px solid var(--border-strong); border-radius:var(--radius-sm); font-size:12px; font-family:inherit; background:var(--bg); color:var(--text); resize:none; }
+  .desc-input:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  .file-icon { width:40px; height:40px; border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+  .file-info { flex:1; min-width:0; }
+  .file-name { font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .file-meta { font-size:12px; color:var(--text-muted); margin-top:2px; }
+  .file-actions { display:flex; gap:6px; flex-shrink:0; }
+  .tag-type { display:inline-block; padding:2px 10px; border-radius:100px; font-size:11px; font-weight:600; margin-right:6px; }
+  select { border:1px solid var(--border-strong); border-radius:var(--radius-sm); padding:6px 10px; font-size:13px; background:var(--surface); color:var(--text); font-family:inherit; cursor:pointer; }
+  .search-wrap { position:relative; margin-bottom:16px; }
+  .search-wrap input { width:100%; padding:11px 44px 11px 16px; border:1px solid var(--border-strong); border-radius:var(--radius); font-size:15px; background:var(--surface); color:var(--text); font-family:inherit; }
+  .search-wrap input:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  .search-icon { position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:18px; pointer-events:none; }
+  .filter-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+  .filter-chip { padding:6px 16px; border-radius:100px; font-size:13px; border:1px solid var(--border-strong); background:var(--surface); color:var(--text-muted); cursor:pointer; transition:all 0.15s; font-family:inherit; }
+  .filter-chip:hover { border-color:var(--accent); color:var(--accent-text); }
+  .filter-chip.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .result-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px 20px; margin-bottom:12px; box-shadow:var(--shadow); transition:border-color 0.15s; }
+  .result-card:hover { border-color:var(--accent); }
+  .result-head { display:flex; align-items:flex-start; gap:12px; margin-bottom:8px; }
+  .result-icon { font-size:22px; flex-shrink:0; margin-top:1px; }
+  .result-title { font-size:15px; font-weight:600; flex:1; }
+  .result-foot { display:flex; align-items:center; justify-content:space-between; }
+  .result-date { font-size:12px; color:var(--text-faint); }
+  mark { background:#fef08a; color:inherit; border-radius:2px; padding:0 1px; }
+  .empty { text-align:center; padding:60px 20px; color:var(--text-muted); font-size:14px; }
+  .empty-icon { font-size:48px; margin-bottom:12px; opacity:0.4; }
+  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px; }
+  .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px; box-shadow:var(--shadow); }
+  .stat-label { font-size:12px; color:var(--text-muted); margin-bottom:8px; }
+  .stat-value { font-size:28px; font-weight:700; }
+  .stat-sub { font-size:12px; color:var(--text-faint); margin-top:4px; }
+  .section-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px 24px; margin-bottom:16px; box-shadow:var(--shadow); }
+  .section-card h3 { font-size:15px; font-weight:600; margin-bottom:14px; color:var(--text-muted); }
+  .chart-bar-wrap { display:flex; flex-direction:column; gap:10px; }
+  .chart-row { display:flex; align-items:center; gap:12px; font-size:13px; }
+  .chart-label { width:130px; text-align:right; flex-shrink:0; color:var(--text-muted); }
+  .chart-bar-bg { flex:1; height:8px; background:var(--bg); border-radius:100px; overflow:hidden; }
+  .chart-bar-fill { height:100%; border-radius:100px; transition:width 0.6s ease; }
+  .chart-count { width:24px; text-align:left; font-weight:600; flex-shrink:0; }
+  .chat-area { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); min-height:320px; max-height:480px; overflow-y:auto; padding:20px; margin-bottom:12px; display:flex; flex-direction:column; gap:14px; }
+  .msg { max-width:85%; }
+  .msg-user { align-self:flex-start; background:var(--accent); color:#fff; padding:10px 14px; border-radius:14px 14px 4px 14px; font-size:14px; line-height:1.6; }
+  .msg-ai { align-self:flex-end; background:var(--bg); border:1px solid var(--border); padding:10px 14px; border-radius:14px 14px 14px 4px; font-size:14px; line-height:1.6; color:var(--text); }
+  .msg-loading { align-self:flex-end; background:var(--bg); border:1px solid var(--border); padding:10px 14px; border-radius:14px 14px 14px 4px; color:var(--text-faint); font-size:13px; }
+  .chat-input-row { display:flex; gap:8px; }
+  .chat-input-row textarea { flex:1; padding:10px 14px; border:1px solid var(--border-strong); border-radius:var(--radius); font-size:14px; font-family:inherit; background:var(--surface); color:var(--text); resize:none; min-height:44px; max-height:120px; }
+  .quick-chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+  .quick-chip { padding:7px 16px; border-radius:100px; font-size:13px; border:1px solid var(--border-strong); background:var(--surface); color:var(--text-muted); cursor:pointer; transition:all 0.15s; font-family:inherit; }
+  .quick-chip:hover { border-color:var(--accent); color:var(--accent-text); background:var(--accent-bg); }
+  .progress-bar { width:100%; height:6px; background:var(--border); border-radius:100px; margin-top:8px; overflow:hidden; display:none; }
+  .progress-fill { height:100%; background:var(--accent); border-radius:100px; transition:width 0.3s; width:0%; }
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--text); color:#fff; padding:10px 20px; border-radius:var(--radius); font-size:13px; opacity:0; transition:opacity 0.3s; pointer-events:none; z-index:9999; }
+  .toast.show { opacity:1; }
+  .connecting { text-align:center; padding:20px; color:var(--text-muted); font-size:14px; }
+  @media(max-width:768px) {
+    .sidebar { width:100%; position:static; flex-direction:row; overflow-x:auto; padding:12px; border-left:none; border-bottom:1px solid var(--border); }
+    .sidebar-logo, .sidebar-footer { display:none; }
+    .nav-item { padding:8px 14px; white-space:nowrap; flex-shrink:0; }
+    .main { margin-right:0; padding:20px 16px; }
+    .stats-grid { grid-template-columns:1fr 1fr; }
+    .layout { flex-direction:column; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <h1>📋 پایگاه دانش</h1>
+      <p>مدیریت محتوا و اسناد</p>
+    </div>
+    <button class="nav-item active" onclick="showPage('upload',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      آپلود فایل <span class="nav-badge" id="badge-count">0</span>
+    </button>
+    <button class="nav-item" onclick="showPage('search',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      جستجو
+    </button>
+    <button class="nav-item" onclick="showPage('analyze',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      تحلیل و آمار
+    </button>
+    <button class="nav-item" onclick="showPage('ai',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2z"/><path d="M12 8v4l3 3"/></svg>
+      پرسش هوشمند
+    </button>
+    <div class="sidebar-footer" id="connStatus">در حال اتصال به سرور...</div>
+  </nav>
+
+  <main class="main">
+    <!-- Upload -->
+    <div id="page-upload" class="page active">
+      <div class="page-header">
+        <h2>آپلود فایل‌ها</h2>
+        <p>فایل‌ها روی سرور ذخیره می‌شوند و همیشه در دسترس هستند</p>
+      </div>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()"
+        ondragover="event.preventDefault();this.classList.add('dragover')"
+        ondragleave="this.classList.remove('dragover')"
+        ondrop="handleDrop(event)">
+        <div class="drop-zone-icon">☁️</div>
+        <h3>فایل‌ها را اینجا بکشید یا کلیک کنید</h3>
+        <p>فایل‌ها دائمی ذخیره می‌شوند — از هر دستگاهی قابل دسترس</p>
+        <div class="type-tags">
+          <span class="type-tag" style="background:#FAECE7;color:#712B13">📄 PDF</span>
+          <span class="type-tag" style="background:#E6F1FB;color:#0C447C">📝 Word / متن</span>
+          <span class="type-tag" style="background:#EEEDFE;color:#3C3489">🎬 ویدیو / صوت</span>
+          <span class="type-tag" style="background:#EAF3DE;color:#27500A">🖼️ تصویر / اسکن</span>
+        </div>
+        <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+        <input type="file" id="fileInput" multiple accept=".pdf,.doc,.docx,.txt,.mp4,.mp3,.wav,.m4a,.jpg,.jpeg,.png,.webp" style="display:none" onchange="handleFiles(this.files)">
+      </div>
+      <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px">
+        <label style="font-size:13px;color:var(--text-muted)">دسته‌بندی:</label>
+        <select id="defaultCategory">
+          <option value="auto">تشخیص خودکار</option>
+          <option value="speech">سخنرانی</option>
+          <option value="interview">گفتگو تلویزیونی</option>
+          <option value="doc">سند / اسکن</option>
+          <option value="other">سایر</option>
+        </select>
+      </div>
+      <div class="file-list" id="fileList">
+        <div class="connecting">در حال بارگذاری فایل‌ها از سرور...</div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div id="page-search" class="page">
+      <div class="page-header"><h2>جستجو در محتوا</h2><p>در نام و نوع همه فایل‌های ذخیره شده جستجو کنید</p></div>
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="جستجو در عنوان و نوع فایل..." oninput="doSearch()">
+      </div>
+      <div class="filter-bar">
+        <button class="filter-chip active" data-filter="all" onclick="setFilter(this)">همه</button>
+        <button class="filter-chip" data-filter="speech" onclick="setFilter(this)">🎤 سخنرانی</button>
+        <button class="filter-chip" data-filter="interview" onclick="setFilter(this)">📺 گفتگو تلویزیونی</button>
+        <button class="filter-chip" data-filter="doc" onclick="setFilter(this)">📄 سند / اسکن</button>
+        <button class="filter-chip" data-filter="other" onclick="setFilter(this)">📁 سایر</button>
+      </div>
+      <div id="searchResults"><div class="empty"><div class="empty-icon">🔍</div><p>برای شروع جستجو تایپ کنید</p></div></div>
+    </div>
+
+    <!-- Analyze -->
+    <div id="page-analyze" class="page">
+      <div class="page-header"><h2>تحلیل و آمار</h2><p>مرور کلی محتوای ذخیره شده روی سرور</p></div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">مجموع فایل‌ها</div><div class="stat-value" id="st-total">-</div><div class="stat-sub">فایل ذخیره شده</div></div>
+        <div class="stat-card"><div class="stat-label">🎤 سخنرانی</div><div class="stat-value" id="st-speech">-</div><div class="stat-sub">مورد</div></div>
+        <div class="stat-card"><div class="stat-label">📺 گفتگو تلویزیونی</div><div class="stat-value" id="st-interview">-</div><div class="stat-sub">مورد</div></div>
+        <div class="stat-card"><div class="stat-label">📄 سند / اسکن</div><div class="stat-value" id="st-doc">-</div><div class="stat-sub">مورد</div></div>
+      </div>
+      <div class="section-card"><h3>توزیع انواع فایل</h3><div class="chart-bar-wrap" id="chartBars"></div></div>
+      <div class="section-card"><h3>آخرین فایل‌های اضافه‌شده</h3><div id="recentList"></div></div>
+    </div>
+
+    <!-- AI -->
+    <div id="page-ai" class="page">
+      <div class="page-header"><h2>پرسش هوشمند</h2><p>سوال‌های خود را درباره فایل‌های ذخیره شده بپرسید</p></div>
+      <div class="quick-chips">
+        <button class="quick-chip" onclick="askQuestion('خلاصه همه سخنرانی‌های مدیر را بده')">📋 خلاصه سخنرانی‌ها</button>
+        <button class="quick-chip" onclick="askQuestion('مهم‌ترین موضوعات در گفتگوهای تلویزیونی چیست؟')">📺 موضوعات تلویزیونی</button>
+        <button class="quick-chip" onclick="askQuestion('فهرست کامل اسناد و اسکن‌های موجود را نشان بده')">📄 فهرست اسناد</button>
+        <button class="quick-chip" onclick="askQuestion('یک گزارش جامع از همه محتوا تهیه کن')">📊 گزارش جامع</button>
+      </div>
+      <div class="chat-area" id="chatArea">
+        <div class="msg msg-ai">سلام! فایل‌های شما روی سرور ذخیره شدن و همیشه در دسترسن. سوال خود را بپرسید.</div>
+      </div>
+      <div class="chat-input-row">
+        <textarea id="chatInput" placeholder="سوال خود را بنویسید..." rows="2"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"></textarea>
+        <button class="btn btn-primary" onclick="sendChat()" style="align-self:flex-end">ارسال ✈️</button>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Supabase Config ──
+const SUPABASE_URL = 'https://kmbgsrdjrzrfvtmcbdct.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImttYmdzcmRqcnpyZnZ0bWNiZGN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5ODg1NjcsImV4cCI6MjA5NzU2NDU2N30.ZxcM27-CQT4YpHAk3pBCp-jyj_evUT4xix6e13OUVSk';
+const BUCKET = 'files';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let files = [];
+let activeFilter = 'all';
+let descriptions = {};
+
+// ── Init ──
+async function init() {
+  try {
+    await loadDescriptions();
+    await loadFiles();
+    document.getElementById('connStatus').textContent = '✅ متصل به سرور';
+  } catch(e) {
+    document.getElementById('connStatus').textContent = '❌ خطا در اتصال';
+  }
+}
+
+async function loadDescriptions() {
+  try {
+    const { data } = await sb.storage.from(BUCKET).download('_descriptions.json');
+    if (data) { const t = await data.text(); descriptions = JSON.parse(t); }
+  } catch(e) { descriptions = {}; }
+}
+
+async function saveDescriptions() {
+  const blob = new Blob([JSON.stringify(descriptions)], { type:'application/json' });
+  await sb.storage.from(BUCKET).upload('_descriptions.json', blob, { upsert:true });
+}
+
+async function updateDescription(filename, value) {
+  descriptions[filename] = value;
+  await saveDescriptions();
+  showToast('توضیح ذخیره شد ✅');
+}
+
+// ── Load files from Supabase ──
+async function loadFiles() {
+  const { data, error } = await sb.storage.from(BUCKET).list('', { limit: 500, sortBy: { column: 'created_at', order: 'desc' } });
+  if (error) throw error;
+  files = (data || []).filter(f => f.name !== '.emptyFolderPlaceholder' && f.name !== '_descriptions.json').map(f => ({
+    id: f.id || f.name,
+    name: f.name,
+    size: f.metadata?.size || 0,
+    type: guessType(f.name),
+    date: f.created_at,
+    icon: fileIcon(f.name),
+    path: f.name
+  }));
+  renderFileList();
+  updateBadge();
+}
+
+// ── Navigation ──
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  btn.classList.add('active');
+  if (id === 'analyze') updateAnalyze();
+  if (id === 'search') { doSearch(); setTimeout(() => document.getElementById('searchInput').focus(), 100); }
+}
+
+// ── File helpers ──
+function guessType(name) {
+  const cat = document.getElementById('defaultCategory')?.value;
+  if (cat && cat !== 'auto') return cat;
+  const ext = name.split('.').pop().toLowerCase();
+  if (['mp4','mov','avi','mkv','mp3','wav','m4a'].includes(ext)) return 'interview';
+  if (['jpg','jpeg','png','webp'].includes(ext)) return 'doc';
+  return 'speech';
+}
+function typeLabel(t) {
+  return { speech:'🎤 سخنرانی', interview:'📺 گفتگو تلویزیونی', doc:'📄 سند / اسکن', other:'📁 سایر' }[t] || '📁';
+}
+function typeColor(t) {
+  return { speech:{bg:'#EEEDFE',color:'#3C3489'}, interview:{bg:'#FAECE7',color:'#712B13'}, doc:{bg:'#EAF3DE',color:'#27500A'}, other:{bg:'#E6F1FB',color:'#0C447C'} }[t] || {bg:'#f0f0f0',color:'#555'};
+}
+function fileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  if (ext==='pdf') return '📄';
+  if (['doc','docx'].includes(ext)) return '📝';
+  if (ext==='txt') return '🗒️';
+  if (['mp4','mov','avi'].includes(ext)) return '🎬';
+  if (['mp3','wav','m4a'].includes(ext)) return '🎵';
+  if (['jpg','jpeg','png','webp'].includes(ext)) return '🖼️';
+  return '📁';
+}
+function fmtSize(b) {
+  if (!b) return '-';
+  if (b<1024) return b+' B';
+  if (b<1048576) return Math.round(b/1024)+' KB';
+  return (b/1048576).toFixed(1)+' MB';
+}
+function fmtDate(d) {
+  if (!d) return '-';
+  return new Date(d).toLocaleDateString('fa-IR');
+}
+
+// ── Upload ──
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+}
+
+async function handleFiles(fileList) {
+  const bar = document.getElementById('progressBar');
+  const fill = document.getElementById('progressFill');
+  bar.style.display = 'block';
+  let done = 0;
+  const total = fileList.length;
+
+  for (const f of Array.from(fileList)) {
+    const safeName = Date.now() + '_' + f.name.replace(/[^a-zA-Z0-9._\-\u0600-\u06FF]/g, '_');
+    try {
+      const { error } = await sb.storage.from(BUCKET).upload(safeName, f, { cacheControl:'3600', upsert:false });
+      if (error) { showToast('خطا در آپلود: ' + f.name); }
+      else { showToast('آپلود شد: ' + f.name); }
+    } catch(e) { showToast('خطا: ' + f.name); }
+    done++;
+    fill.style.width = Math.round(done/total*100) + '%';
+  }
+
+  bar.style.display = 'none';
+  fill.style.width = '0%';
+  await loadFiles();
+}
+
+function renderFileList() {
+  const el = document.getElementById('fileList');
+  if (!files.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📂</div><p>هنوز فایلی آپلود نشده است</p></div>';
+    return;
+  }
+  el.innerHTML = files.map(f => {
+    const c = typeColor(f.type);
+    const desc = descriptions[f.name] || '';
+    const sid = f.name.replace(/[^a-zA-Z0-9]/g,'_');
+    return `<div class="file-card">
+      <div class="file-icon" style="background:${c.bg};flex-shrink:0">${f.icon}</div>
+      <div class="file-info" style="flex:1;min-width:0">
+        <div class="file-name">${f.name}</div>
+        <div class="file-meta"><span class="tag-type" style="background:${c.bg};color:${c.color}">${typeLabel(f.type)}</span>${fmtSize(f.size)} · ${fmtDate(f.date)}</div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
+          <textarea class="desc-input" id="desc_${sid}" rows="1" placeholder="توضیح اضافه کنید...">${desc}</textarea>
+          <button class="btn btn-sm btn-outline" onclick="updateDescription('${f.name}',document.getElementById('desc_${sid}').value)" style="flex-shrink:0;white-space:nowrap">💾 ذخیره</button>
+        </div>
+      </div>
+      <div class="file-actions" style="flex-shrink:0;flex-direction:column;gap:6px">
+        <button class="btn btn-sm btn-outline" onclick="openFile('${f.path}','${f.name}')">مشاهده</button>
+        <button class="btn btn-sm btn-danger" onclick="removeFile('${f.path}','${f.name}')">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function openFile(path, name) {
+  const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
+  const url = data.publicUrl;
+  const ext = name.split('.').pop().toLowerCase();
+  const isVideo = ['mp4','mov','avi','mkv','webm'].includes(ext);
+  const isAudio = ['mp3','wav','m4a'].includes(ext);
+  const isImage = ['jpg','jpeg','png','webp','gif'].includes(ext);
+  const w = window.open();
+  if (isVideo) {
+    w.document.write(`<html><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><video controls autoplay style="max-width:100%;max-height:100vh"><source src="${url}"></video></body></html>`);
+  } else if (isAudio) {
+    w.document.write(`<html><body style="margin:0;background:#1a1915;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:Tahoma;color:#fff;gap:20px"><div style="font-size:60px">🎵</div><div>${name}</div><audio controls autoplay style="width:360px"><source src="${url}"></audio></body></html>`);
+  } else if (isImage) {
+    w.document.write(`<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${url}" style="max-width:100%;max-height:100vh"></body></html>`);
+  } else {
+    w.location.href = url;
+  }
+}
+
+async function removeFile(path, name) {
+  if (!confirm('فایل «' + name + '» حذف شود؟')) return;
+  const { error } = await sb.storage.from(BUCKET).remove([path]);
+  if (error) { showToast('خطا در حذف فایل'); return; }
+  showToast('فایل حذف شد');
+  await loadFiles();
+}
+
+function updateBadge() {
+  document.getElementById('badge-count').textContent = files.length;
+}
+
+// ── Search ──
+function setFilter(btn) {
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  activeFilter = btn.dataset.filter;
+  doSearch();
+}
+function doSearch() {
+  const q = document.getElementById('searchInput').value.trim();
+  const el = document.getElementById('searchResults');
+  let pool = files.filter(f => activeFilter==='all' || f.type===activeFilter);
+  if (!q) {
+    el.innerHTML = pool.length ? pool.map(f => resultCard(f,'')).join('') : '<div class="empty"><div class="empty-icon">📂</div><p>هنوز فایلی بارگذاری نشده</p></div>';
+    return;
+  }
+  const matches = pool.filter(f => f.name.toLowerCase().includes(q.toLowerCase()) || typeLabel(f.type).includes(q));
+  el.innerHTML = matches.length ? matches.map(f => resultCard(f,q)).join('') : '<div class="empty"><div class="empty-icon">🔍</div><p>نتیجه‌ای یافت نشد</p></div>';
+}
+function hl(text, q) {
+  if (!q) return text;
+  return text.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'), m=>`<mark>${m}</mark>`);
+}
+function resultCard(f, q) {
+  const c = typeColor(f.type);
+  return `<div class="result-card">
+    <div class="result-head"><div class="result-icon">${f.icon}</div><div class="result-title">${hl(f.name,q)}</div><span class="tag-type" style="background:${c.bg};color:${c.color}">${typeLabel(f.type)}</span></div>
+    <div class="result-foot"><span class="result-date">📅 ${fmtDate(f.date)} · ${fmtSize(f.size)}</span><button class="btn btn-sm btn-outline" onclick="openFile('${f.path}','${f.name}')">مشاهده</button></div>
+  </div>`;
+}
+
+// ── Analyze ──
+function updateAnalyze() {
+  const total = files.length;
+  const counts = {speech:0,interview:0,doc:0,other:0};
+  files.forEach(f => { counts[f.type] = (counts[f.type]||0)+1; });
+  document.getElementById('st-total').textContent = total;
+  document.getElementById('st-speech').textContent = counts.speech;
+  document.getElementById('st-interview').textContent = counts.interview;
+  document.getElementById('st-doc').textContent = counts.doc;
+  const bars = document.getElementById('chartBars');
+  if (!total) { bars.innerHTML = '<div style="color:var(--text-faint);font-size:13px">هنوز فایلی بارگذاری نشده</div>'; return; }
+  bars.innerHTML = [
+    {label:'🎤 سخنرانی',count:counts.speech,color:'#534AB7'},
+    {label:'📺 گفتگو تلویزیونی',count:counts.interview,color:'#993C1D'},
+    {label:'📄 سند / اسکن',count:counts.doc,color:'#3B6D11'},
+    {label:'📁 سایر',count:counts.other||0,color:'#185FA5'},
+  ].map(it=>`<div class="chart-row"><div class="chart-label">${it.label}</div><div class="chart-bar-bg"><div class="chart-bar-fill" style="width:${Math.round(it.count/total*100)}%;background:${it.color}"></div></div><div class="chart-count">${it.count}</div></div>`).join('');
+  const recent = document.getElementById('recentList');
+  const last5 = files.slice(0,5);
+  recent.innerHTML = last5.map(f=>{const c=typeColor(f.type);return `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:20px">${f.icon}</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</div><div style="font-size:11px;color:var(--text-muted)">${fmtDate(f.date)}</div></div><span class="tag-type" style="background:${c.bg};color:${c.color}">${typeLabel(f.type)}</span></div>`;}).join('');
+}
+
+// ── AI ──
+function buildContext() {
+  if (!files.length) return 'هیچ فایلی آپلود نشده است.';
+  return files.map(f=>`- ${f.name} | ${typeLabel(f.type)} | ${fmtSize(f.size)} | ${fmtDate(f.date)}`).join('\n');
+}
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  await askQuestion(q);
+}
+async function askQuestion(q) {
+  const area = document.getElementById('chatArea');
+  const uMsg = document.createElement('div');
+  uMsg.className = 'msg msg-user';
+  uMsg.textContent = q;
+  area.appendChild(uMsg);
+  const loading = document.createElement('div');
+  loading.className = 'msg msg-loading';
+  loading.textContent = 'در حال پردازش...';
+  area.appendChild(loading);
+  area.scrollTop = area.scrollHeight;
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6', max_tokens:1000,
+        system:`تو دستیار هوشمند یک مدیر ارشد هستی. فهرست فایل‌های موجود:\n${buildContext()}\nبه فارسی پاسخ بده.`,
+        messages:[{role:'user',content:q}]
+      })
+    });
+    const data = await res.json();
+    loading.className = 'msg msg-ai';
+    loading.innerHTML = (data.content?.map(c=>c.text||'').join('')||'خطا').replace(/\n/g,'<br>');
+  } catch(e) {
+    loading.className = 'msg msg-ai';
+    loading.textContent = '❌ خطا در اتصال.';
+  }
+  area.scrollTop = area.scrollHeight;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+init();
+</script>
+</body>
+</html>
